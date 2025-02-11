@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <title>hello-wasm example</title>
+  </head>
+  <body>
+    <p>QR data:</p>
+    <input id="qrData" value="https://adamchalmers.com">
+    <button id="validate">Validate</button>
+    <span id="isValid"></span>
+    <br>
+    <img id="qr" src="">
+    <script type="module">
+      import init, {qr_png_b64, validate_link} from "./pkg/cool_qr.js";
+      init().then(() => {
+        const updateQR = (event) => {
+          const dataInput = document.getElementById("qrData");
+          const data = dataInput.value;
+          console.log("Data:", data)
+          const container = document.getElementById("qr");
+          const pngBytes = qr_png_b64(data);
+          container.src = "data:image/png;base64," + pngBytes;
+        };
+
+        async function validateURL(event) {
+          const dataInput = document.getElementById("qrData");
+          const data = dataInput.value;
+          console.log("Validating", data)
+          const {isValid, err} = await validate_link(data)
+            .then((_) => {return {isValid: true, err: undefined}})
+            .catch((err) => {return {isValid: false, err}});
+          const isValidSpan = document.getElementById("isValid");
+          const isValidText = isValid ? "Link resolves" : "Link does not resolve";
+          const isValidRes = document.createTextNode(isValidText);
+          while (isValidSpan.firstChild) {
+            isValidSpan.removeChild(isValidSpan.firstChild);
+          }
+          isValidSpan.appendChild(isValidRes);
+        }
+
+        document.getElementById("validate").addEventListener("click", validateURL)
+        document.getElementById("qrData").addEventListener("input", updateQR)
+      });
+    </script>
+  </body>
+</html>

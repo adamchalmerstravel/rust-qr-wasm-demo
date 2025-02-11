@@ -1,0 +1,16 @@
+[package]
+name = "cool-qr"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+base64 = "0.22.1"
+image = "0.25"
+qrcode = "0.14.1"
+reqwest = { version = "0.12" }
+url = "2.5.4"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4.50"
