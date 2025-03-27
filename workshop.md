@@ -193,6 +193,8 @@ You can deploy a Rust library to any of these places, and that's very convenient
 
 ## 3: Using async
 
+> Note: if you want to skip part 2, you can check out the complete part 2 code via `git checkout part2`, or viewing the code online at https://github.com/adamchalmerstravel/rust-qr-wasm-demo/tree/part2
+
 Let's add another feature: checking if the URL is valid. You wouldn't want to print out a lot of QR codes only to discover that you made a typo in the URL! This will teach us how to use async Rust inside WebAssembly.
 
 ### 3.1 Async Rust
@@ -261,6 +263,8 @@ When we call `validate_link` we must:
 Then we can insert text into the webpage depending on what the Rust function returned.
 
 ## 4: Extensions
+
+> Note: if you want to skip part 3, you can check out the complete part 2 code via `git checkout part3`, or viewing the code online at https://github.com/adamchalmerstravel/rust-qr-wasm-demo/tree/part3
 
 If you've made it this far, great! Here are some ideas to extend this app.
 

@@ -8,10 +8,3 @@ crate-type = ["cdylib"]
 
 [dependencies]
 wasm-bindgen = "0.2"
-base64 = "0.22.1"
-image = "0.25"
-qrcode = "0.14.1"
-web-sys = { version = "0.3.77", features = ["console"] }
-reqwest = "0.12"
-url = "2.5.4"
-wasm-bindgen-futures = "0.4.50"
