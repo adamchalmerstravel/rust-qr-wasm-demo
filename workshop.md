@@ -77,6 +77,125 @@ Now open up `localhost:9000` in your web browser. If everything went right, you 
 
 Congratulations, you've used 3 different tools: Rust, JavaScript, and WebAssembly, and glued them together. Very nice.
 
+### 1.4 Debugging
+
+I personally use a lot of `println!` calls for debugging Rust (and a lot of `console.log` calls for debugging JavaScript). But when your browser runs Rust code via WebAssembly, the Rust code can't use `println!` to help you debug. Nothing will actually get printed. WebAssembly doesn't have a `stdout` to show you these printed messages.
+
+So how do you debug your Rust code inside WebAssembly? Well, instead of `println!` we'll just call the browser's normal `console.log` function, from Rust! First add `web-sys = { version = "0.3.77", features = ["console"] }` to `Cargo.toml` under `[dependencies]`, then put a log statement like this:
+
+```rust
+web_sys::console::log_1(&format!("Your log message goes here").into())
+```
+
+Now you can print logs from Rust code and see them in the browser console. To learn more, visit https://rustwasm.github.io/wasm-bindgen/examples/console-log.html which explains this is more depth.
+
 ## 2: Generating images in Rust
 
 So, we've got the basics of hello world working, showing how Rust and JavaScript can call each other. Now let's do something more advanced: let's generate some PNG images in Rust, and then insert them into our webpage with JavaScript.
+
+### 2.1 Adding crates
+
+We're going to use some Rust libraries (which are usually called "crates"). They're available on [crates.io](https://crates.io), the official Rust package registry. Let's add them to our `Cargo.toml` under the `[dependencies]` key. That's where you tell Cargo which packages your project depends on.
+
+```toml
+[dependencies]
+base64 = "0.22.1"
+image = "0.25"
+qrcode = "0.14.1"
+reqwest = { version = "0.12" }
+url = "2.5.4"
+```
+
+To make sure Cargo can find these, let's run a quick `cargo check` in the CLI. It should succeed. If not, you probably typed something wrong in `Cargo.toml`.
+
+### 2.2 Generating QR codes
+
+Now let's write a Rust function to build a QR code which encodes some string of text. First, at the top of your Rust file add these imports:
+
+```rust
+use base64::Engine;
+use image::Luma;
+use qrcode::QrCode;
+```
+
+Now let's generate a PNG image containing a QR code with some data.
+
+```rust
+pub fn qr_png_for(url: String) -> Vec<u8> {
+  let code = QrCode::new(url).unwrap();
+  let img = code.render::<Luma<u8>>().build();
+  let mut bytes = Vec::new();
+  img.write_to(
+    &mut std::io::Cursor::new(&mut bytes),
+    image::ImageFormat::Png,
+  )
+  .unwrap();
+  bytes
+}
+```
+
+This function returns the raw bytes for a PNG file which contains a QR code that links to the given `url` parameter. Neat! To make it easier for JavaScript to use this image, let's encode it in base64.
+
+```rust
+#[wasm_bindgen]
+pub fn qr_png_b64(url: String) -> String {
+  let png_bytes = qr_png_for(url);
+  base64::engine::general_purpose::STANDARD.encode(png_bytes)
+}
+```
+
+Great! Let's recompile our library to WASM:
+
+```sh
+wasm-pack build --target web
+```
+
+Make sure it compiles. If something's wrong, check for typos or ask for help!
+
+### 2.3 Showing QR codes in the frontend
+
+Now let's call this QR function from JavaScript. Open up `index.html` and let's replace the `<script>` tag with this instead:
+
+```js
+<script type="module">
+  import init, {qr_png_b64} from "./pkg/cool_qr.js";
+  init().then(() => {
+    const updateQR = (event) => {
+      const dataInput = document.getElementById("qrData");
+      const data = dataInput.value;
+      console.log("Data:", data)
+      const container = document.getElementById("qr");
+      const pngBytes = qr_png_b64(data);
+      container.src = "data:image/png;base64," + pngBytes;
+    };
+    document.getElementById("qrData").addEventListener("input", updateQR)
+    updateQR()
+  });
+</script>
+```
+
+What's going on here? Well, we're:
+
+ - Importing the `qr_png_b64` function (defined in Rust and compiled into WebAssembly) into our JavaScript code.
+ - Calling it, with the URL the user entered into the HTML text input
+ - Getting an empty `<img>` node in the HTML
+ - Putting the PNG bytes (which have been base64-encoded) into that `<img>` node
+
+Great! So we've learned that a whole bunch of Rust libraries can be compiled to WebAssembly and work just fine in the browser. On my machine, the WebAssembly library compiles into 814K, which I think is pretty neat. It should be relatively fast for our end users to download.
+
+This is helpful because the Rust logic to render QR codes into PNGs can be packed up into a library, and deployed on:
+
+ - Your backend
+ - A CLI tool
+ - The frontend (running in the user's machine, in their browser)
+
+You can deploy a Rust library to any of these places, and that's very convenient. You can reuse the same logic on your server or client, and avoid duplicating your logic in multiple languages for multiple environments.
+
+## 3: Extensions
+
+If you've made it this far, great! Here are some ideas to extend this app.
+
+ - Use a Rust crate like [`reqwest`](https://docs.rs/reqwest) to send HTTP requests from WebAssembly. Use this to validate the URL is actually a valid link before rendering the QR code. This will teach you to use async Rust from JavaScript!
+ - Render mathematical fractals, like the Mandelbrot set, into the PNG instead of a QR code. Compare a JavaScript implementation and a Rust/WASM implementation. Which code do you like better? Which one is faster?
+ - Make the WebAssembly binary smaller, using tips from the [Rust WASM book](https://rustwasm.github.io/book/reference/code-size.html).
+ - Go through the Rust WebAssembly ["Game of Life" tutorial](https://rustwasm.github.io/book/game-of-life/introduction.html), which will build a more complicated application.
