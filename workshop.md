@@ -50,8 +50,10 @@ The next function is called `msg`, and it does two things. It makes a little pop
 Now that we've seen the Rust library, let's compile it to WebAssembly so that we can call it from the frontend. Open up the terminal and run:
 
 ```sh
-wasm-pack build --target web
+wasm-pack build --target web --debug
 ```
+
+> Note: the --debug flag should not be used for production builds of your web app which actually get deployed to users. We're using it here in this workshop because it speeds up WebAssembly compilation. But this comes at the cost of slower runtime performance. In production, remove this --debug flag.
 
 This creates a new directory, `pkg/`. It contains a JavaScript package. Inside are a few files:
 
@@ -102,8 +104,6 @@ We're going to use some Rust libraries (which are usually called "crates"). They
 base64 = "0.22.1"
 image = "0.25"
 qrcode = "0.14.1"
-reqwest = { version = "0.12" }
-url = "2.5.4"
 ```
 
 To make sure Cargo can find these, let's run a quick `cargo check` in the CLI. It should succeed. If not, you probably typed something wrong in `Cargo.toml`.
@@ -147,7 +147,7 @@ pub fn qr_png_b64(url: String) -> String {
 Great! Let's recompile our library to WASM:
 
 ```sh
-wasm-pack build --target web
+wasm-pack build --target web --debug
 ```
 
 Make sure it compiles. If something's wrong, check for typos or ask for help!
@@ -191,11 +191,79 @@ This is helpful because the Rust logic to render QR codes into PNGs can be packe
 
 You can deploy a Rust library to any of these places, and that's very convenient. You can reuse the same logic on your server or client, and avoid duplicating your logic in multiple languages for multiple environments.
 
-## 3: Extensions
+## 3: Using async
+
+Let's add another feature: checking if the URL is valid. You wouldn't want to print out a lot of QR codes only to discover that you made a typo in the URL! This will teach us how to use async Rust inside WebAssembly.
+
+### 3.1 Async Rust
+
+Firstly, let's add a few more crates to the `[dependencies]` section in `Cargo.toml`:
+
+```toml
+reqwest = "0.12"
+url = "2.5.4"
+wasm-bindgen-futures = "0.4.50"
+```
+
+Then we'll add an async Rust function which validates URLs.
+
+```rust
+#[wasm_bindgen]
+pub async fn validate_link(data: String) -> Result<(), String> {
+  let url = match url::Url::parse(&data) {
+    Ok(u) => u,
+    Err(e) => return Err(e.to_string()),
+  };
+  match reqwest::get(url).await {
+    Ok(_) => Ok(()),
+    Err(e) => Err(e.to_string()),
+  }
+}
+```
+
+Don't forget to recompile the Rust code with `wasm-pack`!
+
+There's two interesting things about this `validate_link` function: it's async, and it returns a `Result`. How does this get used from JavaScript?
+
+### 3.2 Async and Results in JavaScript
+
+First, update the `import` statement to include `validate_qr`:
+
+```js
+import init, {qr_png_b64, validate_link} from "./pkg/cool_qr.js";
+```
+
+Now let's add this JS function which calls the Rust function:
+
+```js
+async function validateURL(event) {
+  const dataInput = document.getElementById("qrData");
+  const data = dataInput.value;
+  const { isValid, err } = await validate_link(data)
+    .then((_) => { return { isValid: true, err: undefined } })
+    .catch((err) => { return { isValid: false, err } });
+  const isValidSpan = document.getElementById("isValid");
+  const isValidText = isValid ? "Link resolves" : "Link does not resolve";
+  const isValidRes = document.createTextNode(isValidText);
+  while (isValidSpan.firstChild) {
+    isValidSpan.removeChild(isValidSpan.firstChild);
+  }
+  isValidSpan.appendChild(isValidRes);
+}
+document.getElementById("validate").addEventListener("click", validateURL)
+```
+
+When we call `validate_link` we must:
+
+1. Use `await` to make sure the async function actually completes
+2. Handle the `Result` by using `.then` to check for the `Ok` variant, and `.catch` to check for the `Err` variant.
+
+Then we can insert text into the webpage depending on what the Rust function returned.
+
+## 4: Extensions
 
 If you've made it this far, great! Here are some ideas to extend this app.
 
- - Use a Rust crate like [`reqwest`](https://docs.rs/reqwest) to send HTTP requests from WebAssembly. Use this to validate the URL is actually a valid link before rendering the QR code. This will teach you to use async Rust from JavaScript!
  - Render mathematical fractals, like the Mandelbrot set, into the PNG instead of a QR code. Compare a JavaScript implementation and a Rust/WASM implementation. Which code do you like better? Which one is faster?
  - Make the WebAssembly binary smaller, using tips from the [Rust WASM book](https://rustwasm.github.io/book/reference/code-size.html).
- - Go through the Rust WebAssembly ["Game of Life" tutorial](https://rustwasm.github.io/book/game-of-life/introduction.html), which will build a more complicated application.
+ - Right now, our QR code app generates data in Rust and manipulates DOM elements (e.g. setting the `<img>` source) in JavaScript. Try manipulating the DOM elements in Rust instead, by importing the JS functions like `document.getElementById` and then setting their properties.

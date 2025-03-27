@@ -32,3 +32,15 @@ pub fn qr_png_b64(url: String) -> String {
     let png_bytes = qr_png_for(url);
     base64::engine::general_purpose::STANDARD.encode(png_bytes)
 }
+
+#[wasm_bindgen]
+pub async fn validate_link(data: String) -> Result<(), String> {
+  let url = match url::Url::parse(&data) {
+    Ok(u) => u,
+    Err(e) => return Err(e.to_string()),
+  };
+  match reqwest::get(url).await {
+    Ok(_) => Ok(()),
+    Err(e) => Err(e.to_string()),
+  }
+}
